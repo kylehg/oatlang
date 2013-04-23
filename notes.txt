@@ -1,0 +1,8 @@
+
+ - add implicit subtype of Object for class declarations with no superclass?
+ - more generally, how are Object's methods/fields handled?
+
+ - allow subtype on exp_new ?
+
+ - change if? to also check types (i.e. only checks null, not cast) 
+   [Note for future: combine both types of downcast into one construct?]
