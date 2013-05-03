@@ -17,6 +17,7 @@ open Range;;
 %token <Range.t> TUNIT    /* unit */
 %token <Range.t> TSTRING  /* string */
 %token <Range.t> CAST     /* cast */
+%token <Range.t> CASTNULL /* cast? */
 %token <Range.t> IF       /* if */
 %token <Range.t> IFNULL   /* if? */
 %token <Range.t> ELSE     /* else */
@@ -285,6 +286,18 @@ U:
      { Cast (snd($3), $4, $6, $8, None) }
   | CAST LPAREN CIDENT IDENT EQ exp RPAREN M ELSE U 
      { Cast (snd($3), $4, $6, $8, Some $10) }
+  | CASTNULL LPAREN CIDENT IDENT EQ exp RPAREN stmt 
+     { IfNull (RClass("Object"), (Range.ghost, "__" ^ (snd $4)), $6,
+               Cast (snd $3, $4,
+                     LhsOrCall(Var(Range.ghost, "__" ^ (snd $4))),
+                     None),
+               None) }
+  | CASTNULL LPAREN CIDENT IDENT EQ exp RPAREN M ELSE U 
+     { IfNull (RClass("Object"), (Range.ghost, "__" ^ (snd $4)), $6,
+               Cast (snd $3, $4,
+                     LhsOrCall(Var(Range.ghost, "__" ^ (snd $4))),
+                     Some $10),
+               Some $10) }
   | WHILE LPAREN exp RPAREN U  { While ($3, $5) } 
   | FOR LPAREN vdecllist SEMI expOPT SEMI stmtOPT RPAREN U { For ($3, $5, $7, $9) }  
 
