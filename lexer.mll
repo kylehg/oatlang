@@ -46,6 +46,7 @@
   ("if?", fun i -> IFNULL i);
   ("if", fun i -> IF i);
   ("cast", fun i -> CAST i);
+  ("cast?", fun i -> CASTNULL i);
   ("this", fun i -> THIS i);
   ("super", fun i -> SUPER i);
   ("fail", fun i -> FAIL i);
