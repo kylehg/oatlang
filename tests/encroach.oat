@@ -189,10 +189,12 @@ class Missile <: DelayedObject {
 
 class Guy <: GameObject {
   int hp;
+  int dead;
   string pic;
 
   new (int hp)(con_width() >> 1, con_height()-1)
     this.pic = "_^_";
+    this.dead = 0;
   {
     this.hp = hp;
   }
@@ -215,9 +217,68 @@ class Guy <: GameObject {
     return;
   }
 
+  unit blowup() {
+    this.dead = 1;
+    return;
+  }
+
   Missile fire_missile(List aliens) {
     return new Missile(this.x+1, this.y, 0, aliens);
   }
+};
+
+class ReturnFire <: DelayedObject {
+  int dir;
+  string pic;
+  Guy g;
+
+  new (int x, int y, int delay, Guy g)(x,y,delay)
+    this.pic = "i";
+    this.g = g;
+  {
+    this.dir = 1; /* move down */
+  }
+
+  int collision() {
+    int keep = 1;
+    if ((this.g.x <= this.x) &
+        (this.x <= this.g.x + 3) &
+        (this.g.y <= this.y) &
+        (this.y <= this.g.y + 1)) {
+      this.g.blowup();
+      keep = 0;
+    }
+    return keep;
+  }
+
+  int move() {
+    int keep = 1;
+    if (this.dir < 0) {
+      if (this.y == 0)
+        keep = 0;
+      else
+        this.y = this.y - 1;
+    } else if (this.dir > 0) {
+      if (this.y >= con_height())
+        keep = 0;
+      else
+        this.y = this.y + 1;
+    } else {
+      keep = 1;
+    }
+    if (keep == 1) {
+      keep = this.collision();
+    }
+    return keep;
+  }
+
+  unit draw() {
+    con_move(this.x, this.y);
+    con_print(this.pic);
+    con_move(0,0);
+    return;
+  }
+
 };
 
 unit update_list(List l) {
@@ -256,6 +317,7 @@ unit draw_list(List l) {
 
 class State <: Object {
   int num_aliens;
+  int game_over;
   Guy guy;  
 
   /* A list of DelayedObjects - Aliens and missiles */
@@ -266,6 +328,7 @@ class State <: Object {
     this.aliens = new List();
     this.missiles = new List();
     this.guy = new Guy(10);
+    this.game_over = 0;
   {
     this.num_aliens = oat_div (con_width(), 10);
   }
@@ -309,13 +372,26 @@ class State <: Object {
       this.num_aliens = this.num_aliens + oat_div (con_width(), 10);
       this.create_aliens();
     }
+    if (this.guy.dead == 1)
+      this.game_over = 1;
     update_list(this.aliens);
     update_list(this.missiles);
     return;
   }
 
-  unit display() {
+unit display() {
     con_clear();
+
+    for(int i = 0; i < (con_height() - 1); i = i+1;) {
+      con_move(0,i);
+      con_print("|");
+    }
+    for(int i = 0; i < (con_height() - 1); i = i+1;) {
+      int w = con_width();
+      con_move(w,i);
+      con_print("|");
+    }
+
     /* draw the guy */
     this.guy.draw();
 
@@ -327,8 +403,6 @@ class State <: Object {
     return;
   }
 };
-
-
 
 unit instructions() {
   int k = 0;
@@ -351,7 +425,6 @@ unit lose() {
 int program(int argc, string[] argv) {
   int minx = 80;
   int miny = 25;
-  print_string("HERE\n");
   con_init();
   instructions();
   if ((con_width() >= minx) & (con_height() >= miny) ) {
@@ -361,7 +434,7 @@ int program(int argc, string[] argv) {
     int something = 0;
     state.init();
     something = con_halfdelay(1);  
-    while ((k != 27) & (!lost)) {
+    while ((k != 27) & (!lost) & (state.game_over != 1)) {
       state.display();
       k = con_getch();
       state.update(k);
@@ -372,6 +445,5 @@ int program(int argc, string[] argv) {
     con_cleanup();
     print_string("Minimum size of the console is 80x25!\n");
   }
-  print_string("HERE\n");
   return 0;
 }
