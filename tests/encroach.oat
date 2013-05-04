@@ -318,17 +318,21 @@ unit draw_list(List l) {
 class State <: Object {
   int num_aliens;
   int game_over;
+  int time;
   Guy guy;  
 
   /* A list of DelayedObjects - Aliens and missiles */
   List aliens;
   List missiles;
+  List returnfires;
 
   new ()() 
     this.aliens = new List();
     this.missiles = new List();
+    this.returnfires = new List();
     this.guy = new Guy(10);
     this.game_over = 0;
+    this.time = 0;
   {
     this.num_aliens = oat_div (con_width(), 10);
   }
@@ -372,10 +376,36 @@ class State <: Object {
       this.num_aliens = this.num_aliens + oat_div (con_width(), 10);
       this.create_aliens();
     }
+
     if (this.guy.dead == 1)
       this.game_over = 1;
+
+    this.time = this.time + 1;
+    
+    if (oat_mod(this.time, 6) == 5) {
+      int rand_a = oat_mod(this.time, this.num_aliens);
+      int count_a = 0;
+      ListItem? cursor = this.aliens.head;
+      while (!ptr_equals(cursor,null)) {
+        if?( ListItem item = cursor) {
+          if?( Object o = item.obj ) {
+            cast (Alien a = o) {
+              if (rand_a == count_a) {
+                ReturnFire r = new ReturnFire(a.x-1, a.y, 0, this.guy);
+                this.returnfires.insert(r);
+              }
+              count_a = count_a + 1;
+            }
+          }
+          cursor = item.next;
+        }
+      }
+    }
+
     update_list(this.aliens);
     update_list(this.missiles);
+    update_list(this.returnfires);
+    this.time = this.time + 1;
     return;
   }
 
@@ -398,6 +428,7 @@ unit display() {
     /* draw the game objects */
     draw_list(this.aliens);
     draw_list(this.missiles);
+    draw_list(this.returnfires);
 
     con_refresh();
     return;
@@ -418,10 +449,6 @@ unit instructions() {
   return;
 }
 
-unit lose() {
-  return;
-}
-
 int program(int argc, string[] argv) {
   int minx = 80;
   int miny = 25;
@@ -434,12 +461,31 @@ int program(int argc, string[] argv) {
     int something = 0;
     state.init();
     something = con_halfdelay(1);  
-    while ((k != 27) & (!lost) & (state.game_over != 1)) {
+    while ((k != 27) & (!lost)) {
       state.display();
       k = con_getch();
       state.update(k);
+      if (state.game_over == 1) {
+        con_clear();
+        con_move(0,0);
+        con_print("
+            Darn! You lost. \n\n
+            f - replay \n
+            Esc - quit \n");
+        k = 0;
+        while (k != 27 & k != 102)
+            k = con_getch();
+        if (k == 102) {
+          state = new State();
+          k = 0;
+          something = 0;
+          state.init();
+          something = con_halfdelay(1);
+        } else {
+          lost = true;
+        }
+      }
     }
-    lose();
     con_cleanup();
   } else {
     con_cleanup();
