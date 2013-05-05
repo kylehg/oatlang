@@ -287,15 +287,23 @@ U:
   | CAST LPAREN CIDENT IDENT EQ exp RPAREN M ELSE U 
      { Cast (snd($3), $4, $6, $8, Some $10) }
   | CASTNULL LPAREN CIDENT IDENT EQ exp RPAREN stmt 
-     { IfNull (RClass("Object"), (Range.ghost, "__" ^ (snd $4)), $6,
-               Cast (snd $3, $4,
-                     LhsOrCall(Var(Range.ghost, "__" ^ (snd $4))),
+     { IfNull (RClass "Object",
+               (Range.ghost, "__" ^ (snd $4)),
+               $6,
+               Cast (snd $3,
+                     $4,
+                     LhsOrCall(Lhs(Var(Range.ghost, "__" ^ (snd $4)))),
+                     $8,
                      None),
                None) }
   | CASTNULL LPAREN CIDENT IDENT EQ exp RPAREN M ELSE U 
-     { IfNull (RClass("Object"), (Range.ghost, "__" ^ (snd $4)), $6,
-               Cast (snd $3, $4,
-                     LhsOrCall(Var(Range.ghost, "__" ^ (snd $4))),
+     { IfNull (RClass "Object",
+               (Range.ghost, "__" ^ (snd $4)), 
+               $6,
+               Cast (snd $3, 
+                     $4,
+                     LhsOrCall(Lhs(Var(Range.ghost, "__" ^ (snd $4)))),
+                     $8,
                      Some $10),
                Some $10) }
   | WHILE LPAREN exp RPAREN U  { While ($3, $5) } 
@@ -311,6 +319,16 @@ M:
      { IfNull ($3, $4, $6, $8, Some $10) }
   | CAST LPAREN CIDENT IDENT EQ exp RPAREN M ELSE M 
      { Cast (snd($3), $4, $6, $8, Some $10) }
+  | CASTNULL LPAREN CIDENT IDENT EQ exp RPAREN M ELSE M
+     { IfNull (RClass "Object",
+               (Range.ghost, "__" ^ (snd $4)), 
+               $6,
+               Cast (snd $3, 
+                     $4,
+                     LhsOrCall(Lhs(Var(Range.ghost, "__" ^ (snd $4)))),
+                     $8,
+                     Some $10),
+               Some $10) }
   | WHILE LPAREN exp RPAREN M  { While ($3, $5) } 
   | FOR LPAREN vdecllist SEMI expOPT SEMI stmtOPT RPAREN M { For($3, $5, $7, $9) }  
   | LBRACE block RBRACE { Block ($2) }
