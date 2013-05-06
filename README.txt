@@ -20,7 +20,34 @@ THINGS IMPLEMENTED / CHANGES TO ENCROACH
 - game over screen with option to replay or exit
 
 
--> How to run Kyle's stuff IDK
 THINGS IMPLEMENTED / CHANGES TO OATLANG!
 ----------------------------------------
-# TODO BY KYLE
+Syntactic sugar to eliminate common `if?` + `cast` idiom in OAT. Use `castnull`!
+
+    if? (Object o = item.obj) {
+      cast (Foo f = o) f.print(); else print_string("failed cast");
+    } else print_string("failed null");
+    
+becomes
+    
+    castnull (Foo f = item.obj) {
+      f.print();
+    } else print_string("failed null/cast");
+
+Or, in `encroach.oat`:
+
+    if?( Object o = item.obj ) {
+      cast (DelayedObject dobj = o) {
+        dobj.draw();
+      }
+    }
+
+becomes
+
+    castnull ( DelayedObject dobj = item.obj ) {
+      dobj.draw();
+    }
+
+This is essentially a modification to the parser that unrolls a `castnull` into an `if?` dereference followed by a `cast` from Object. This makese the pseudo-polymorphism used in a datatype like `List` work a bit better/cleaner.
+
+To see that the syntax doesn't change the program semantics, compile `tests/encroach.oat` and `tests/encroach_orig.oat`, diff them, and see that the same LL code is generated for both.

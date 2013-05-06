@@ -1,0 +1,607 @@
+#include "console.oat"
+#include "list.oat"
+#include "math.oat"
+
+bool ptr_equals(Object? o1, Object? o2) {
+  return o1 == o2;
+}
+
+class GameObject <: Object {
+  int x;  
+  int y; 
+
+  new (int x, int y)() {
+    this.x = x;
+    this.y = y;
+  }
+  
+  /* initialization code */
+  unit init() { return; }
+
+  /* overloaded in subclasses */
+  unit draw() { return; }
+};
+
+class DelayedObject <: GameObject {
+  int delay;
+  int current_delay;
+
+  new(int x, int y, int delay)(x,y) {
+    this.delay = delay;
+  }
+
+  /* called after each delay */
+  int move() { return 1; }
+
+  int update() {
+    int keep = 1;
+    this.current_delay = this.current_delay + 1;
+    if (this.current_delay >= this.delay) {
+      /* time to do the update */
+
+      keep = this.move();
+      
+      /* reset the clock */
+      this.current_delay = 0;
+    }
+    return keep;
+  }
+  
+};
+
+class Alien <: DelayedObject {
+  int dir;    /* -1 = left, 0 = immobile, 1 = right */
+  
+  int sizex;  /* dimensions of the alien */
+  int sizey;
+  int frames;
+  int current_frame;
+  string[][] pic;    /*  pic[frame][0] 1st line of a frame     <=> */
+                     /*  pic[frame][1] 2nd line of a frame      V  */ 
+
+  new (int x, int y, int delay)(x,y,delay)
+    this.pic = new string[][3](fun i -> new string[2](fun i -> ""));
+  {     
+    this.dir = -1;    /* start moving left */
+    this.sizex = 3;
+    this.sizey = 2;
+    this.frames = 2;
+    this.current_frame = 0;
+    this.delay = 5;
+    this.current_delay = 0;
+  }
+
+  unit init () {
+    this.pic[0][0] = "<=>";
+    this.pic[0][1] = " V ";
+    this.pic[1][0] = ">=<";
+    this.pic[1][1] = " V ";
+    return;
+  }
+
+  unit change_directions() {
+    this.dir = 0 - this.dir;
+    return;
+  }
+
+  unit blowup() {return;}
+
+  unit hit_edge() {
+    /* increment y coord */
+    this.y = this.y + this.sizey + 1;
+    /* change directions */
+    this.change_directions();
+    return;
+  }
+
+  int move() {
+    /* update the current frame */
+    this.current_frame = oat_mod (this.current_frame + 1, this.frames);
+
+    if (this.dir == -1) {
+    /* Moving left */
+      if (this.x == 1) this.hit_edge(); else this.x = this.x - 1;
+    } else if (this.dir == 1) {
+    /* Moving right */
+      if ((this.x + this.sizex + 2) > con_width()) this.hit_edge ();
+      else this.x = this.x + 1;
+    }
+    return 1;
+  }
+
+  unit draw() {
+    for (int j = 0; j<this.sizey; j = j+1;) {
+      con_move(this.x, this.y + j);
+      con_print(this.pic[this.current_frame][j]);
+      con_move(0,0);
+    }
+    return;
+  }
+};
+
+class Missile <: DelayedObject {
+  int dir;   /* -1 = up, +1 = down */
+  string pic;
+
+  List aliens;  /* for collision detection */
+
+  new (int x, int y, int delay, List aliens)(x,y,delay) 
+    this.pic = "!";
+    this.aliens = aliens;
+  {
+    this.dir = -1;    /* start moving left */
+  }
+
+  int collision() {
+    int keep = 1;
+    ListItem? cursor = this.aliens.head;
+    while (!ptr_equals(cursor,null)) {
+      if?( ListItem item = cursor) {
+        if?( Object o = item.obj ) {
+          cast (Alien a = o) {
+            if ((a.x <= this.x) &
+                (this.x <= a.x + a.sizex) &
+                (a.y <= this.y) &
+                (this.y <= a.y + a.sizey)) {
+                   a.blowup();
+                   this.aliens.remove(item);
+                   keep = 0;
+             }
+          }
+        }
+        cursor = item.next;
+      }
+    }
+    return keep;
+  }
+
+  int move () {
+    int keep = 1;
+    if (this.dir < 0) {
+      if (this.y == 0) 
+        keep = 0; 
+      else 
+        this.y = this.y - 1;
+    } else if (this.dir > 0) {
+      if (this.y >= con_height()) 
+        keep = 0;
+      else 
+        this.y = this.y + 1;
+    } else {
+      keep = 1;
+    }
+    if (keep == 1) { 
+      keep = this.collision(); 
+    }
+    return keep;
+  }
+
+  unit draw() {
+    con_move(this.x, this.y);
+    con_print(this.pic);
+    con_move(0,0);
+    return;
+  }
+
+};
+
+/******************************************************************************/
+
+class Guy <: GameObject {
+  int hp;
+  int dead;
+  string pic;
+
+  new (int hp)(con_width() >> 1, con_height()-1)
+    this.pic = "_^_";
+    this.dead = 0;
+  {
+    this.hp = hp;
+  }
+
+  unit move_left() {
+    if (this.x > 1) this.x = this.x - 1;
+    return;
+  }
+
+  unit move_right() {
+    if ((this.x+5) < con_width() ) this.x = this.x + 1;
+    return;
+  }
+
+  unit draw() {
+    con_move(0,0);
+    con_move(this.x, this.y);
+    con_print(this.pic);
+    con_move(0,0);
+    return;
+  }
+
+  unit blowup() {
+    this.hp = this.hp - 1;
+    if (this.hp < 1)
+        this.dead = 1;
+    return;
+  }
+
+  Missile fire_missile(List aliens) {
+    return new Missile(this.x+1, this.y, 0, aliens);
+  }
+};
+
+class ReturnFire <: DelayedObject {
+  int dir;
+  string pic;
+  Guy g;
+
+  new (int x, int y, int delay, Guy g)(x,y,delay)
+    this.pic = "i";
+    this.g = g;
+  {
+    this.dir = 1; /* move down */
+  }
+
+  int collision() {
+    int keep = 1;
+    if ((this.g.x <= this.x) &
+        (this.x <= this.g.x + 3) &
+        (this.g.y <= this.y) &
+        (this.y <= this.g.y + 1)) {
+      this.g.blowup();
+      keep = 0;
+    }
+    return keep;
+  }
+
+  int move() {
+    int keep = 1;
+    if (this.dir < 0) {
+      if (this.y == 0)
+        keep = 0;
+      else
+        this.y = this.y - 1;
+    } else if (this.dir > 0) {
+      if (this.y >= con_height())
+        keep = 0;
+      else
+        this.y = this.y + 1;
+    } else {
+      keep = 1;
+    }
+    if (keep == 1) {
+      keep = this.collision();
+    }
+    return keep;
+  }
+
+  unit draw() {
+    con_move(this.x, this.y);
+    con_print(this.pic);
+    con_move(0,0);
+    return;
+  }
+
+};
+
+unit update_list(List l) {
+    /* update the game objects */
+    ListItem? cursor = l.head;
+    while (!ptr_equals(cursor,null)) {
+      if?( ListItem item = cursor) {
+        if?( Object o = item.obj ) {
+          cast (DelayedObject dobj = o) {
+            int keep = dobj.update();
+            if (keep == 0) l.remove(item);
+          }
+        }
+        cursor = item.next;
+      }
+    }
+    return;
+  }
+
+
+unit draw_list(List l) {
+    /* update the game objects */
+    ListItem? cursor = l.head;
+    while (!ptr_equals(cursor,null)) {
+      if?( ListItem item = cursor) {
+        if?( Object o = item.obj ) {
+          cast (DelayedObject dobj = o) {
+            dobj.draw();
+          }
+        }
+        cursor = item.next;
+      }
+    }
+    return;
+  }
+
+class State <: Object {
+  int num_aliens;
+  int game_over;
+  int time;
+  Guy guy;  
+
+  /* A list of DelayedObjects - Aliens and missiles */
+  List aliens;
+  List missiles;
+  List returnfires;
+
+  new ()() 
+    this.aliens = new List();
+    this.missiles = new List();
+    this.returnfires = new List();
+    this.guy = new Guy(3);
+    this.game_over = 0;
+    this.time = 0;
+  {
+    this.num_aliens = oat_div (con_width(), 10);
+  }
+
+  unit create_aliens() {
+    int x = oat_div(con_width(), 10);   /* max number of aliens across */
+    int ay = 0;
+    for(int i = 0; i < this.num_aliens; i = i+1;) {
+       if (oat_mod (i, x) == 0) ay = ay + 5;
+       {
+         Alien a = new Alien(oat_mod (i, x) * 10 + 1, ay, 5);
+         a.init();
+         this.aliens.insert(a);
+         i = i+1;
+       }
+    }
+    return;
+  }
+
+  unit init() {
+    this.guy.init();
+    this.create_aliens();
+    return;
+  }
+
+  unit fire_missile() {
+    Missile m = this.guy.fire_missile(this.aliens);
+    this.missiles.insert(m);
+    return;
+  }
+
+  unit update(int k) {
+    /* update the guy */
+    if (k == 106) 
+       this.guy.move_left();
+    if (k == 108)
+       this.guy.move_right();
+    if (k == 102) 
+       this.fire_missile();
+    if (this.aliens.is_empty()) {
+      this.num_aliens = this.num_aliens + oat_div (con_width(), 10);
+      this.create_aliens();
+    }
+
+    if (this.guy.dead == 1)
+      this.game_over = 1;
+
+    this.time = this.time + 1;
+    
+    if (oat_mod(this.time - 4, 6) == 5) {
+      int rand_a = oat_mod(this.time, this.num_aliens);
+      int count_a = 0;
+      ListItem? cursor = this.aliens.head;
+      while (!ptr_equals(cursor,null)) {
+        if?( ListItem item = cursor) {
+          if?( Object o = item.obj ) {
+            cast (Alien a = o) {
+              if (rand_a == count_a) {
+                ReturnFire r = new ReturnFire(a.x-1, a.y, 0, this.guy);
+                this.returnfires.insert(r);
+              }
+              count_a = count_a + 1;
+            }
+          }
+          cursor = item.next;
+        }
+      }
+    }
+
+    update_list(this.aliens);
+    update_list(this.missiles);
+    update_list(this.returnfires);
+    this.time = this.time + 1;
+    return;
+  }
+
+unit display() {
+    con_clear();
+
+    for(int i = 0; i < (con_height() - 1); i = i+1;) {
+      con_move(0,i);
+      con_print("|");
+    }
+    for(int i = 0; i < (con_height() - 1); i = i+1;) {
+      int w = con_width() - 1;
+      con_move(w,i);
+      con_print("|");
+    }
+
+    con_move((con_width() - 10),1);
+    con_print("L");
+    con_move((con_width() - 9),1);
+    con_print("i");
+    con_move((con_width() - 8),1);
+    con_print("v");
+    con_move((con_width() - 7),1);
+    con_print("e");
+    con_move((con_width() - 6),1);
+    con_print("s");
+    con_move((con_width() - 5),1);
+    con_print(":");
+    con_move((con_width() - 4),1);
+    con_print(" ");
+    con_move((con_width() - 3),1);
+    if (this.guy.hp == 1)
+        con_print("1");
+    if (this.guy.hp == 2)
+        con_print("2");
+    if (this.guy.hp == 3)
+        con_print("3");
+
+    /* draw the guy */
+    this.guy.draw();
+
+    /* draw the game objects */
+    draw_list(this.aliens);
+    draw_list(this.missiles);
+    draw_list(this.returnfires);
+
+    con_refresh();
+    return;
+  }
+};
+
+unit draw_girl() {
+    con_move(0, con_height() - 26);
+    con_print("--------------------nHHHHHHHHHHHHHHHHHHHHHHHHHHHHHn");
+    con_move(0, con_height() - 25);
+    con_print("----------------.MS?MMMMMMMMMMMMMMMMMM?MM~MMMMMMMMMSHM");
+    con_move(0, con_height() - 24);
+    con_print("---------------MMMMH?MMMMMMMX*MM?MMX%MM/MMMMMMHHMMMMMMMMM");
+    con_move(0, con_height() - 23);
+    con_print("------------MMMMMMMMMMMMMMMMMX*MX*MMMX?MMMMM(M!XMMMMMMMMMM");
+    con_move(0, con_height() - 22);
+    con_print("-----------XMC)?MMMMMMMMMMMMMMMhX?!?MMMMX#MM!MXMMMMMMMMMMMML");
+    con_move(0, con_height() - 21);
+    con_print("-----------MMMMMMMMMMMMMMMMMMMMMMMM!~`````-`~!?MMMM)MMMMMMMMx");
+    con_move(0, con_height() - 20);
+    con_print("----------`MMM)MMMMMMMMMMMMMMMHhHH!~           `#MM(MMMMMMMMMM>");
+    con_move(0, con_height() - 19);
+    con_print("---------HM!HMMMMMMMMMMMMMMMM*?)?`                ``MMMMMMMMMX");
+    con_move(0, con_height() - 18);
+    con_print("--------XM!MMMMMMMMMMMMMMMMMMM?~                     'MMMMMMMM:");
+    con_move(0, con_height() - 17);
+    con_print("--------M!MMMMMMMMMMMMMMMMMXH!                        MMMMXMMP'`");
+    con_move(0, con_height() - 16);
+    con_print("-------/!MMMMMMMSMHHHMM?XMM?~    -:::xx..             M?XMM?'");
+    con_move(0, con_height() - 15);
+    con_print("-------MXMMMMMMMMMM!XHMMMM`:       ... ``%x          XHHHMM*");
+    con_move(0, con_height() - 14);
+    con_print("------/!MMMMMMMM?XMMMMMMX!'~       '%%%+:.  `       ..MMMMM'");
+    con_move(0, con_height() - 13);
+    con_print("------'HMMMMMM?HMMMMM*XM!           ~|).^/~     .%''`MMM?'`");
+    con_move(0, con_height() - 12);
+    con_print("------'MMMMMMMMMMMMMXMMM!                       +%%!.MMMXk");
+    con_move(0, con_height() - 11);
+    con_print("------?MMMMMMMMMMMXMMMMM `.                    `'''XMMMMX");
+    con_move(0, con_height() - 10);
+    con_print("------!MMMMMMMMMMMMMMMMMX.    '                  XMkMMX>");
+    con_move(0, con_height() - 9);
+    con_print("------XMMMMMMMMMMMMMMM?MXXXx.-`                  XXMMM!");
+    con_move(0, con_height() - 8);
+    con_print("------MMMMMMMMMMMMMMMMXMXXXXXXx.         ~~      MMMMM");
+    con_move(0, con_height() - 7);
+    con_print("------XMMMMMMMMMMMM?MMXXXXXXXXX!`         '+^  .MMM!P");
+    con_move(0, con_height() - 6);
+    con_print("------'MMM!MMMMMMMMMXXXXX!`XXXXX!`            xMMMM'");
+    con_move(0, con_height() - 5);
+    con_print("--------XMMMMMMMM   MM`         `      `'XMM/.MMMMM");
+    con_move(0, con_height() - 4);
+    con_print("---------XMMM    ?MM!            `      `'' HMMMMM");
+    con_move(0, con_height() - 3);
+    con_print("----------XM'     /~               . ----'MMMMM*");
+    con_move(0, con_height() - 2);
+    con_print("----------'M   /~                        XMMM*");
+    con_move(0, con_height() - 1);
+    con_print("-------------  ^                          `M");
+    return;
+}
+
+unit intro_seq() {
+   int k = 0;
+   con_clear();
+   draw_girl();
+   con_move(66, con_height() - 23);
+   con_print("COLONEL ANDREA HALE:");
+   con_move(66, con_height() - 21);
+   con_print("The encroachers broke atmo fifteen minutes ago.");
+   con_move(66, con_height() - 20);
+   con_print("We don't have the defenses to hold them off--");
+   con_move(66, con_height() - 19);
+   con_print("but you can buy us time to evac the civilians.");
+   con_move(66, con_height() - 17);
+   con_print("I won't lie, lieutenant-- this is likely to be a suicide mission.");
+   con_move(66, con_height() - 15);
+   con_print("[press any key to continue]");
+   k = con_getch(); 
+   return;
+}
+
+unit instructions() {
+  int k = 0;
+  intro_seq();
+  con_clear();
+  con_move(0,0);
+  con_print("
+    EXTRATERRESTRIAL ENCROACHERS! \n
+      j - Move left \n
+      l - Move right \n
+      f - Fire \n
+      Esc - quit \n\n
+      [Press any key to begin]\n");
+  k = con_getch();
+  return;
+}
+
+int program(int argc, string[] argv) {
+  int minx = 140;
+  int miny = 30;
+  con_init();
+  con_move(0,0);
+
+  instructions();
+
+  if ((con_width() < minx) | (con_height() < miny)) {
+    con_cleanup();
+    print_string("Minimum size of the console is 140x30!\n");
+  } else {
+
+  State state = new State(); 
+  bool lost = false;
+  int k = 0;
+  int something = 0;
+  state.init();
+  something = con_halfdelay(1);  
+
+  while ((k != 27) & (!lost)) {
+    state.display();
+    k = con_getch();
+    state.update(k);
+
+    if (state.game_over == 1) {
+      con_clear();
+      con_move(0,0);
+      con_print("
+          Did you manage to hold the encroachers off long enough? 
+          One can only hope. \n
+          f - replay \n
+          Esc - quit \n");
+      k = 0;
+      while (k != 27 & k != 102)
+        k = con_getch();
+      if (k == 102) {
+        state = new State();
+        k = 0;
+        something = 0;
+        state.init();
+        something = con_halfdelay(1);
+      } else {
+        lost = true;
+      }
+    }
+  }
+
+  con_cleanup();
+
+  }
+
+  return 0;
+}
