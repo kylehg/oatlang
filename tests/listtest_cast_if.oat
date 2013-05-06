@@ -15,7 +15,7 @@ unit printFooList(List l) {
   ListItem? cursor = l.head;
   while (!equals(cursor, null)) {
     if? (ListItem item = cursor) {
-      cast? (Foo f = item.obj) {
+      castnull (Foo f = item.obj) {
         f.print();
       } else print_string("failed null/cast");
       cursor = item.next;

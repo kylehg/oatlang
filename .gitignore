@@ -3,4 +3,3 @@
 _build/
 c_bin/
 c_obj/
-*.out
