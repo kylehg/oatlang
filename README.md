@@ -24,9 +24,13 @@ THINGS IMPLEMENTED / CHANGES TO OATLANG!
 ----------------------------------------
 Syntactic sugar to eliminate common `if?` + `cast` idiom in OAT. Use `castnull`!
 
-    if? (Object o = item.obj) {
-      cast (Foo f = o) f.print(); else print_string("failed cast");
-    } else print_string("failed null");
+```c
+if? (Object o = item.obj) {
+  cast (Foo f = o) {
+    f.print();
+  } else print_string("failed cast");
+} else print_string("failed null");
+```
     
 becomes
     
@@ -36,17 +40,21 @@ becomes
 
 Or, in `encroach.oat`:
 
-    if?( Object o = item.obj ) {
-      cast (DelayedObject dobj = o) {
-        dobj.draw();
-      }
-    }
+```c
+if?( Object o = item.obj ) {
+  cast (DelayedObject dobj = o) {
+    dobj.draw();
+  }
+}
+```
 
 becomes
 
-    castnull ( DelayedObject dobj = item.obj ) {
-      dobj.draw();
-    }
+```c
+castnull ( DelayedObject dobj = item.obj ) {
+  dobj.draw();
+}
+```
 
 This is essentially a modification to the parser that unrolls a `castnull` into an `if?` dereference followed by a `cast` from Object. This makese the pseudo-polymorphism used in a datatype like `List` work a bit better/cleaner.
 
